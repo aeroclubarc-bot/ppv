@@ -1,57 +1,71 @@
 // netlify/functions/total.js
+import crypto from "crypto";
 
-const BASE_URL = process.env.SOLARMAN_BASE_URL;
+const BASE_URL = "https://globalapi.solarmanpv.com";
+
 const API_ID = process.env.SOLARMAN_API_ID;
 const API_SECRET = process.env.SOLARMAN_API_SECRET;
 const EMAIL = process.env.SOLARMAN_USERNAME;
 const PASSWORD = process.env.SOLARMAN_PASSWORD;
 
+function sha256(str) {
+  return crypto.createHash("sha256").update(str, "utf8").digest("hex");
+}
+
+function extractToken(data) {
+  return data?.access_token ||
+         data?.data?.access_token ||
+         data?.data?.accessToken ||
+         null;
+}
+
 async function getAccessToken() {
-  const res = await fetch(BASE_URL + "/account/v1.0/token", {
+
+  const url = `${BASE_URL}/account/v1.0/token?appId=${API_ID}&language=en`;
+
+  const res = await fetch(url, {
     method: "POST",
     headers: {
       "Content-Type": "application/json"
     },
     body: JSON.stringify({
-      appId: API_ID,
-      appSecret: API_SECRET,
       email: EMAIL,
-      password: PASSWORD
+      password: sha256(PASSWORD),
+      appSecret: API_SECRET
     })
   });
 
-  if (!res.ok) {
-    throw new Error("Token request failed: " + res.status);
-  }
-
   const data = await res.json();
 
-  if (!data.access_token) {
-    throw new Error("No access_token returned");
+  const token = extractToken(data);
+
+  if (!res.ok || !token) {
+    throw new Error(
+      "Token failed: " + JSON.stringify(data)
+    );
   }
 
-  return data.access_token;
+  return token;
 }
 
-async function getPlantList(token) {
-  const res = await fetch(BASE_URL + "/station/v1.0/list", {
+async function getStationList(token) {
+
+  const res = await fetch(`${BASE_URL}/station/v1.0/list`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "Authorization": "Bearer " + token
+      "Authorization": `Bearer ${token}`
     },
-    body: JSON.stringify({
-      page: 1,
-      size: 10
-    })
+    body: JSON.stringify({})
   });
 
+  const data = await res.json();
+
   if (!res.ok) {
-    throw new Error("Station list failed: " + res.status);
+    throw new Error("Station list failed: " + JSON.stringify(data));
   }
 
-  const data = await res.json();
-  return data?.data?.list || [];
+  return data?.stationList || data?.data?.list || [];
 }
 
 export const handler = async () => {
@@ -65,7 +79,7 @@ export const handler = async () => {
     }
 
     const token = await getAccessToken();
-    const stations = await getPlantList(token);
+    const stations = await getStationList(token);
 
     if (!stations.length) {
       return {
@@ -89,16 +103,16 @@ export const handler = async () => {
         "Cache-Control": "public, max-age=300"
       },
       body: JSON.stringify({
-        station_name: station.stationName,
+        station_name: station.name || station.stationName,
         total_kwh: Number(total_kwh),
         updated_at: station.lastUpdateTime || null
       })
     };
 
-  } catch (error) {
+  } catch (err) {
     return {
       statusCode: 500,
-      body: JSON.stringify({ error: error.message })
+      body: JSON.stringify({ error: err.message })
     };
   }
 };
