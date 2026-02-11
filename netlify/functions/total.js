@@ -1,7 +1,6 @@
 // netlify/functions/total.js
 
-const BASE_URL = process.env.SOLARMAN_BASE_URL || "https://api.solarmanpv.com";
-
+const BASE_URL = process.env.SOLARMAN_BASE_URL;
 const API_ID = process.env.SOLARMAN_API_ID;
 const API_SECRET = process.env.SOLARMAN_API_SECRET;
 const EMAIL = process.env.SOLARMAN_USERNAME;
