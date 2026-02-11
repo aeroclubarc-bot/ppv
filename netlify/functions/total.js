@@ -1,8 +1,8 @@
 import crypto from "crypto";
 
 const BASE_URL = process.env.SOLARMAN_BASE_URL || "https://globalapi.solarmanpv.com/account/v1.0/token?appId=3024071796931544&language=en";
-const API_ID = 3024071796931544;
-const API_SECRET = e2ab3c446a24723b5a46ed36797aed35;
+const API_ID = process.env.SOLARMAN_API_ID;
+const API_SECRET = process.env.SOLARMAN_API_SECRET;
 
 function sign(params, secret) {
   const sortedKeys = Object.keys(params).sort();
