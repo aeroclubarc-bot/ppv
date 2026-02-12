@@ -1,20 +1,31 @@
 // netlify/functions/total.js
-const BASE_URL = "https://api.solarmanpv.com";
+const crypto = require("crypto");
+
+const BASE_URL = "https://globalapi.solarmanpv.com";
 
 const API_ID = process.env.SOLARMAN_API_ID;
 const API_SECRET = process.env.SOLARMAN_API_SECRET;
 const EMAIL = process.env.SOLARMAN_USERNAME;
 const PASSWORD = process.env.SOLARMAN_PASSWORD;
 
+function sha256Lower(str) {
+  return crypto
+    .createHash("sha256")
+    .update(str, "utf8")
+    .digest("hex")
+    .toLowerCase(); // IMPORTANT
+}
+
 function extractToken(data) {
-  return data?.access_token ||
-         data?.data?.access_token ||
-         data?.data?.accessToken ||
-         null;
+  return (
+    data?.access_token ||
+    data?.data?.access_token ||
+    data?.data?.accessToken ||
+    null
+  );
 }
 
 async function getAccessToken() {
-
   const url = `${BASE_URL}/account/v1.0/token?appId=${API_ID}&language=en`;
 
   const res = await fetch(url, {
@@ -24,7 +35,7 @@ async function getAccessToken() {
     },
     body: JSON.stringify({
       email: EMAIL,
-      password: PASSWORD,
+      password: sha256Lower(PASSWORD),
       appSecret: API_SECRET
     })
   });
@@ -40,7 +51,6 @@ async function getAccessToken() {
 }
 
 async function getStationList(token) {
-
   const res = await fetch(`${BASE_URL}/station/v1.0/list`, {
     method: "POST",
     headers: {
@@ -83,7 +93,9 @@ exports.handler = async function () {
 
     return {
       statusCode: 200,
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json"
+      },
       body: JSON.stringify(station, null, 2)
     };
 
