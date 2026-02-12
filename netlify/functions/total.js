@@ -88,15 +88,15 @@ export const handler = async () => {
       };
     }
 
-    const station = stations[0];
+const station = stations[0];
 
-    const total_kwh =
-      station.totalEnergy ||
-      station.totalYield ||
-      station.generationTotal ||
-      0;
-
-    return {
+return {
+  statusCode: 200,
+  headers: {
+    "Content-Type": "application/json"
+  },
+  body: JSON.stringify(station, null, 2)
+};
       statusCode: 200,
       headers: {
         "Content-Type": "application/json",
