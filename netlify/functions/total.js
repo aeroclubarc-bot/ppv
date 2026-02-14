@@ -8,7 +8,7 @@ const API_SECRET = process.env.SOLARMAN_API_SECRET;
 const EMAIL = process.env.SOLARMAN_USERNAME;
 const PASSWORD = process.env.SOLARMAN_PASSWORD;
 
-// ---- SHA256 lowercase (exigé par SOLARMAN)
+// SHA256 lowercase (requis par SOLARMAN)
 function sha256Lower(str) {
   return crypto
     .createHash("sha256")
@@ -17,7 +17,6 @@ function sha256Lower(str) {
     .toLowerCase();
 }
 
-// ---- Extraction token selon format réponse
 function extractToken(data) {
   return (
     data?.access_token ||
@@ -27,7 +26,7 @@ function extractToken(data) {
   );
 }
 
-// ---- STEP 1 : obtenir access token
+// ---- TOKEN
 async function getAccessToken() {
 
   const url =
@@ -44,7 +43,6 @@ async function getAccessToken() {
   });
 
   const data = await res.json();
-
   const token = extractToken(data);
 
   if (!res.ok || !token) {
@@ -54,7 +52,7 @@ async function getAccessToken() {
   return token;
 }
 
-// ---- STEP 2 : récupérer la liste des centrales
+// ---- LISTE STATIONS
 async function getStationList(token) {
 
   const res = await fetch(`${BASE_URL}/station/v1.0/list`, {
@@ -75,7 +73,7 @@ async function getStationList(token) {
   return data?.stationList || data?.data?.list || [];
 }
 
-// ---- STEP 3 : récupérer production énergétique
+// ---- ENERGY (BON ENDPOINT POUR TON TENANT)
 async function getStationEnergy(token, stationId) {
 
   const res = await fetch(
@@ -99,6 +97,7 @@ async function getStationEnergy(token, stationId) {
   }
 
   return data?.data || data;
+}
 
 // ---- HANDLER NETLIFY
 exports.handler = async function () {
@@ -111,10 +110,7 @@ exports.handler = async function () {
       };
     }
 
-    // Auth
     const token = await getAccessToken();
-
-    // Centrale
     const stations = await getStationList(token);
 
     if (!stations.length) {
@@ -125,8 +121,6 @@ exports.handler = async function () {
     }
 
     const station = stations[0];
-
-    // Energie
     const energy = await getStationEnergy(token, station.id);
 
     return {
