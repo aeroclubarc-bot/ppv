@@ -9,7 +9,7 @@ const EMAIL = process.env.SOLARMAN_USERNAME;
 const PASSWORD = process.env.SOLARMAN_PASSWORD;
 
 
-// ---------- SHA256 lowercase (requis par SOLARMAN)
+// ---------- SHA256 lowercase (exigé par SOLARMAN)
 function sha256Lower(str) {
   return crypto
     .createHash("sha256")
@@ -21,11 +21,7 @@ function sha256Lower(str) {
 
 // ---------- Extraction token
 function extractToken(data) {
-  return (
-    data?.access_token ||
-    data?.data?.access_token ||
-    null
-  );
+  return data?.access_token || data?.data?.access_token || null;
 }
 
 
@@ -56,7 +52,7 @@ async function getAccessToken() {
 }
 
 
-// ---------- STATION LIST + STATISTICS
+// ---------- STATION LIST
 async function getStationList(token) {
 
   const res = await fetch(`${BASE_URL}/station/v1.0/list`, {
@@ -67,8 +63,7 @@ async function getStationList(token) {
     },
     body: JSON.stringify({
       pageNum: 1,
-      pageSize: 10,
-      needStatistics: true
+      pageSize: 10
     })
   });
 
@@ -78,11 +73,11 @@ async function getStationList(token) {
     throw new Error("Station list failed: " + JSON.stringify(data));
   }
 
-  return data?.data?.list || [];
+  return data?.data?.list || data?.stationList || [];
 }
 
 
-// ---------- HANDLER
+// ---------- HANDLER NETLIFY
 exports.handler = async function () {
   try {
 
@@ -110,10 +105,9 @@ exports.handler = async function () {
       },
       body: JSON.stringify({
         station_name: station.name,
-        total_kwh: station.generationTotal,
-        today_kwh: station.generationToday,
         current_power_w: station.generationPower,
         installed_kwp: station.installedCapacity,
+        battery_soc: station.batterySoc,
         updated_at: station.lastUpdateTime
       }, null, 2)
     };
