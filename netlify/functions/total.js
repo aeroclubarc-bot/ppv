@@ -9,7 +9,7 @@ const EMAIL = process.env.SOLARMAN_USERNAME;
 const PASSWORD = process.env.SOLARMAN_PASSWORD;
 
 
-// SHA256 lowercase
+// ---------- SHA256 lowercase
 function sha256Lower(str) {
   return crypto.createHash("sha256").update(str).digest("hex").toLowerCase();
 }
@@ -38,13 +38,15 @@ async function getAccessToken() {
   const data = await res.json();
   const token = extractToken(data);
 
-  if (!token) throw new Error("Token failed");
+  if (!token) {
+    throw new Error("Token failed: " + JSON.stringify(data));
+  }
 
   return token;
 }
 
 
-// ---------- DEVICE REALTIME
+// ---------- REALTIME DEVICE DATA
 async function getRealtime(token, deviceSn) {
 
   const res = await fetch(
@@ -77,15 +79,22 @@ exports.handler = async function () {
 
     const token = await getAccessToken();
 
-    // TON numéro série trouvé dans ton JSON
+    // SN de ton onduleur (confirmé dans ton JSON)
     const deviceSn = "SE1ES430N5R271";
 
     const realtime = await getRealtime(token, deviceSn);
 
-const list = realtime.data?.dataList || realtime.dataList || [];
+    // SOLARMAN change la structure selon les comptes...
+    const list =
+      realtime?.data?.dataList ||
+      realtime?.data?.data?.dataList ||
+      realtime?.dataList ||
+      [];
 
-const find = key =>
-  list.find(i => i.key === key)?.value || 0;
+    // helper lecture clé
+    const find = key =>
+      Number(list.find(i => i.key === key)?.value || 0);
+
     return {
       statusCode: 200,
       headers: {
@@ -94,10 +103,10 @@ const find = key =>
       },
       body: JSON.stringify({
         station_name: "PPV Aéroclub ARC - LFPX",
-        total_kwh: Number(find("Et_ge0")),
-        today_kwh: Number(find("Etdy_ge1")),
-        current_power_w: Number(find("P_INV1")),
-        battery_soc: Number(find("B_left_cap1"))
+        total_kwh: find("Et_ge0"),      // production totale
+        today_kwh: find("Etdy_ge1"),    // production jour
+        current_power_w: find("P_INV1"),// puissance instantanée
+        battery_soc: find("B_left_cap1")
       }, null, 2)
     };
 
