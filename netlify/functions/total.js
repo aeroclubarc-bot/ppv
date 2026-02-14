@@ -8,7 +8,8 @@ const API_SECRET = process.env.SOLARMAN_API_SECRET;
 const EMAIL = process.env.SOLARMAN_USERNAME;
 const PASSWORD = process.env.SOLARMAN_PASSWORD;
 
-// SHA256 lowercase (requis par SOLARMAN)
+
+// ---------- SHA256 lowercase (exigé par SOLARMAN)
 function sha256Lower(str) {
   return crypto
     .createHash("sha256")
@@ -17,6 +18,8 @@ function sha256Lower(str) {
     .toLowerCase();
 }
 
+
+// ---------- Extraction token
 function extractToken(data) {
   return (
     data?.access_token ||
@@ -26,7 +29,8 @@ function extractToken(data) {
   );
 }
 
-// ---- TOKEN
+
+// ---------- STEP 1 : TOKEN
 async function getAccessToken() {
 
   const url =
@@ -52,7 +56,8 @@ async function getAccessToken() {
   return token;
 }
 
-// ---- LISTE STATIONS
+
+// ---------- STEP 2 : LISTE DES CENTRALES
 async function getStationList(token) {
 
   const res = await fetch(`${BASE_URL}/station/v1.0/list`, {
@@ -73,11 +78,12 @@ async function getStationList(token) {
   return data?.stationList || data?.data?.list || [];
 }
 
-// ---- ENERGY (BON ENDPOINT POUR TON TENANT)
-async function getStationEnergy(token, stationId) {
+
+// ---------- STEP 3 : DETAIL CENTRALE (production totale)
+async function getStationDetail(token, stationId) {
 
   const res = await fetch(
-    `${BASE_URL}/station/v1.0/stationEnergy`,
+    `${BASE_URL}/station/v1.0/station/detail`,
     {
       method: "POST",
       headers: {
@@ -93,13 +99,14 @@ async function getStationEnergy(token, stationId) {
   const data = await res.json();
 
   if (!res.ok) {
-    throw new Error("Energy request failed: " + JSON.stringify(data));
+    throw new Error("Detail request failed: " + JSON.stringify(data));
   }
 
   return data?.data || data;
 }
 
-// ---- HANDLER NETLIFY
+
+// ---------- HANDLER NETLIFY
 exports.handler = async function () {
   try {
 
@@ -110,7 +117,10 @@ exports.handler = async function () {
       };
     }
 
+    // Auth
     const token = await getAccessToken();
+
+    // Centrale
     const stations = await getStationList(token);
 
     if (!stations.length) {
@@ -121,7 +131,9 @@ exports.handler = async function () {
     }
 
     const station = stations[0];
-    const energy = await getStationEnergy(token, station.id);
+
+    // Détail énergie
+    const detail = await getStationDetail(token, station.id);
 
     return {
       statusCode: 200,
@@ -131,8 +143,8 @@ exports.handler = async function () {
       },
       body: JSON.stringify({
         station_name: station.name,
-        total_kwh: energy.totalEnergy,
-        today_kwh: energy.todayEnergy,
+        total_kwh: detail.generationTotal,
+        today_kwh: detail.generationToday,
         current_power_w: station.generationPower,
         updated_at: station.lastUpdateTime
       }, null, 2)
