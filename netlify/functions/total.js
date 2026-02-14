@@ -82,11 +82,10 @@ exports.handler = async function () {
 
     const realtime = await getRealtime(token, deviceSn);
 
-    const list = realtime.dataList || [];
+const list = realtime.data?.dataList || realtime.dataList || [];
 
-    const find = key =>
-      list.find(i => i.key === key)?.value || null;
-
+const find = key =>
+  list.find(i => i.key === key)?.value || 0;
     return {
       statusCode: 200,
       headers: {
