@@ -9,47 +9,36 @@ const EMAIL = process.env.SOLARMAN_USERNAME;
 const PASSWORD = process.env.SOLARMAN_PASSWORD;
 
 
-// ---------- SHA256 lowercase (exigé par SOLARMAN)
+// SHA256 lowercase
 function sha256Lower(str) {
-  return crypto
-    .createHash("sha256")
-    .update(str, "utf8")
-    .digest("hex")
-    .toLowerCase();
+  return crypto.createHash("sha256").update(str).digest("hex").toLowerCase();
 }
 
-
-// ---------- Extraction token
 function extractToken(data) {
-  return (
-    data?.access_token ||
-    data?.data?.access_token ||
-    data?.data?.accessToken ||
-    null
-  );
+  return data?.access_token || data?.data?.access_token || null;
 }
 
 
-// ---------- STEP 1 : TOKEN
+// ---------- TOKEN
 async function getAccessToken() {
 
-  const url =
-    `${BASE_URL}/account/v1.0/token?appId=${API_ID}&language=en`;
-
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      email: EMAIL,
-      password: sha256Lower(PASSWORD),
-      appSecret: API_SECRET
-    })
-  });
+  const res = await fetch(
+    `${BASE_URL}/account/v1.0/token?appId=${API_ID}&language=en`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        email: EMAIL,
+        password: sha256Lower(PASSWORD),
+        appSecret: API_SECRET
+      })
+    }
+  );
 
   const data = await res.json();
   const token = extractToken(data);
 
-  if (!res.ok || !token) {
+  if (!token) {
     throw new Error("Token failed: " + JSON.stringify(data));
   }
 
@@ -57,38 +46,33 @@ async function getAccessToken() {
 }
 
 
-// ---------- STEP 2 : LISTE DES CENTRALES
+// ---------- STATION
 async function getStationList(token) {
 
   const res = await fetch(`${BASE_URL}/station/v1.0/list`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "Authorization": `Bearer ${token}`
+      Authorization: `Bearer ${token}`
     },
     body: JSON.stringify({})
   });
 
   const data = await res.json();
-
-  if (!res.ok) {
-    throw new Error("Station list failed: " + JSON.stringify(data));
-  }
-
   return data?.stationList || data?.data?.list || [];
 }
 
 
-// ---------- STEP 3 : DETAIL CENTRALE (production totale)
-async function getStationDetail(token, stationId) {
+// ---------- DEVICE REALTIME (production réelle)
+async function getDeviceRealtime(token, stationId) {
 
   const res = await fetch(
-    `${BASE_URL}/station/v1.0/station/detail`,
+    `${BASE_URL}/device/v1.0/realTime`,
     {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${token}`
+        Authorization: `Bearer ${token}`
       },
       body: JSON.stringify({
         stationId: stationId
@@ -99,41 +83,29 @@ async function getStationDetail(token, stationId) {
   const data = await res.json();
 
   if (!res.ok) {
-    throw new Error("Detail request failed: " + JSON.stringify(data));
+    throw new Error("Realtime request failed: " + JSON.stringify(data));
   }
 
-  return data?.data || data;
+  return data?.data || [];
 }
 
 
-// ---------- HANDLER NETLIFY
+// ---------- HANDLER
 exports.handler = async function () {
   try {
 
-    if (!API_ID || !API_SECRET || !EMAIL || !PASSWORD) {
-      return {
-        statusCode: 500,
-        body: JSON.stringify({ error: "Missing API credentials" })
-      };
-    }
-
-    // Auth
     const token = await getAccessToken();
-
-    // Centrale
     const stations = await getStationList(token);
 
     if (!stations.length) {
-      return {
-        statusCode: 404,
-        body: JSON.stringify({ error: "No station found" })
-      };
+      throw new Error("No station found");
     }
 
     const station = stations[0];
 
-    // Détail énergie
-    const detail = await getStationDetail(token, station.id);
+    const devices = await getDeviceRealtime(token, station.id);
+
+    const inverter = devices[0] || {};
 
     return {
       statusCode: 200,
@@ -143,8 +115,8 @@ exports.handler = async function () {
       },
       body: JSON.stringify({
         station_name: station.name,
-        total_kwh: detail.generationTotal,
-        today_kwh: detail.generationToday,
+        total_kwh: inverter.totalEnergy,
+        today_kwh: inverter.todayEnergy,
         current_power_w: station.generationPower,
         updated_at: station.lastUpdateTime
       }, null, 2)
