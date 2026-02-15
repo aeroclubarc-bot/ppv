@@ -3,7 +3,7 @@ const crypto = require("crypto");
 
 const BASE_URL = "https://globalapi.solarmanpv.com";
 
-// 🔵 CALIBRATION (production réelle SOLARMAN)
+// 🔵 Production réelle à date (calibration)
 const BASE_TOTAL_KWH = 6517.50;
 
 const API_ID = process.env.SOLARMAN_API_ID;
@@ -12,10 +12,12 @@ const EMAIL = process.env.SOLARMAN_USERNAME;
 const PASSWORD = process.env.SOLARMAN_PASSWORD;
 
 
-// mémoire runtime
+// mémoire runtime Netlify
 let addedEnergy = global.addedEnergy || 0;
 let lastTimestamp = global.lastTimestamp || Date.now();
 
+
+// ---------- SHA256 SOLARMAN
 function sha256Lower(str) {
   return crypto.createHash("sha256").update(str).digest("hex").toLowerCase();
 }
@@ -24,8 +26,10 @@ function extractToken(data) {
   return data?.access_token || data?.data?.access_token || null;
 }
 
-// TOKEN
+
+// ---------- TOKEN
 async function getAccessToken() {
+
   const res = await fetch(
     `${BASE_URL}/account/v1.0/token?appId=${API_ID}&language=en`,
     {
@@ -41,13 +45,18 @@ async function getAccessToken() {
 
   const data = await res.json();
   const token = extractToken(data);
-  if (!token) throw new Error("Token failed");
+
+  if (!token) {
+    throw new Error("Token failed: " + JSON.stringify(data));
+  }
 
   return token;
 }
 
-// STATION
+
+// ---------- STATION (compatible tous formats SOLARMAN)
 async function getStation(token) {
+
   const res = await fetch(`${BASE_URL}/station/v1.0/list`, {
     method: "POST",
     headers: {
@@ -61,18 +70,29 @@ async function getStation(token) {
   });
 
   const data = await res.json();
-  return data?.data?.list?.[0];
+
+  const stations =
+    data?.data?.list ||
+    data?.stationList ||
+    [];
+
+  if (!stations.length) {
+    throw new Error("No station returned by API");
+  }
+
+  return stations[0];
 }
 
 
-// HANDLER
+// ---------- HANDLER
 exports.handler = async function () {
   try {
 
     const token = await getAccessToken();
     const station = await getStation(token);
 
-    const powerW = Number(station.generationPower || 0);
+    // puissance instantanée
+    const powerW = Number(station?.generationPower ?? 0);
 
     // calcul énergie produite depuis dernier appel
     const now = Date.now();
@@ -96,8 +116,9 @@ exports.handler = async function () {
         station_name: station.name,
         current_power_w: powerW,
         total_kwh: Number(totalEnergy.toFixed(2)),
-        battery_soc: station.batterySoc
-      })
+        battery_soc: station?.batterySoc ?? null,
+        updated_at: station?.lastUpdateTime ?? null
+      }, null, 2)
     };
 
   } catch (err) {
